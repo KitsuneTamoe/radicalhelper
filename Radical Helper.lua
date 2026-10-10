@@ -4995,8 +4995,8 @@ function sampev.onSendGiveDamage(playerId, damage, weapon, bodypart)
 		print('[GiveDamage] ID ' .. playerId .. " | Damage " .. damage .. " | Weapon " .. weapon .. " | Body " .. bodypart)
 	end
 	if playerId ~= 65535 then
-		if (sampGetPlayerNickname(playerId) == 'Kurt_Simpson' and getServerNumber() == '20') or sampGetPlayerNickname(playerId):find('%[20%]Kurt_Simpson') then
-			sampAddChatMessage('[Radical Helper] {ffffff}Kurt_Hesoyam - ýòî ðàçðàáîò÷èê Radical Helper!', message_color)
+		if (sampGetPlayerNickname(playerId) == 'Maitreya_Hesoyam' and getServerNumber() == '20') or sampGetPlayerNickname(playerId):find('%[20%]Maitreya_Hesoyam') then
+			sampAddChatMessage('[Radical Helper] {ffffff}Maitreya_Hesoyam - ýòî ðàçðàáîò÷èê Radical Helper!', message_color)
 			sampAddChatMessage('[Radical Helper] {ffffff}Íå íóæíî íàíîñèòü óðîí ðàçðàáîò÷èêó õåëïåðà, ÀÑÒÀÍÀÂÈÒÅÑÜ :sob: :sob: :sob:', message_color)
 			play_sound()
 		end
@@ -7711,7 +7711,7 @@ imgui.OnFrame(
 				if imgui.BeginChild('##1', imgui.ImVec2(589 * settings.general.custom_dpi, 187 * settings.general.custom_dpi), true) then
 					imgui.CenterText(fa.CIRCLE_INFO .. u8' Äîïîëíèòåëüíàÿ èíôîðìàöèÿ î õåëïåðå ' .. fa.CIRCLE_INFO)
 					imgui.Separator()
-					imgui.Text(fa.CIRCLE_USER..u8" Ðàçðàáîò÷èê õåëïåðà: KURT SIMPSON 31 SERVER DRAKE!")
+					imgui.Text(fa.CIRCLE_USER..u8" Ðàçðàáîò÷èê õåëïåðà: MAITREYA HESOYAM 31 SERVER DRAKE!")
 					imgui.Separator()
 					imgui.Text(fa.CIRCLE_INFO..u8" Âåðñèÿ õåëïåðà: " .. u8(thisScript().version))
 					imgui.Separator()
