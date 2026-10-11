@@ -295,6 +295,24 @@ function isMode(mode)
 	return settings.general.fraction_mode == mode
 end
 load_settings()
+------------------------------------------ VIP DEFAULTS ------------------------------------------
+local vip_defaults = {
+general = {
+aflip_domkrat = false, auto_mask = false, auto_update_members = false,
+auto_doklad_post = false, auto_clicker = false,
+auto_invite = {enable = false, rank = 1},
+},
+mj = {auto_doklad_patrool = false, auto_doklad_arrest = false, auto_update_wanteds = false,
+auto_case_documentation = false, auto_rp_situation = false, awanted = false},
+md = {auto_doklad_patrool = false},
+smi = {steal_other_ads = false, send_from_history = false, auto_catch_ads = false,
+ai_generate = {enable = false, key = ''}},
+lc = {auto_repair_znak = {enable = false}, auto_install_znak = {enable = false},
+auto_lic = {enable = false, rp = true}},
+gov = {auto_update_zeks = false},
+ins = {auto_catch_ticket = false, auto_find_game = false, auto_clicker_step3 = false},
+}
+merge_defaults(vip_defaults, settings)
 ---------------------------------------------- AUTO DPI ------------------------------------------
 if not settings.general.autofind_dpi then
 	print('Автоматическое определение DPI интерфейса...')
@@ -2774,7 +2792,8 @@ function processWeaponChange(oldGun, nowGun)
     end
 end
 ------------------------------------------------ Variables --------------------------------------- 
-local isUpdateChecked = false
+local isUpdateChecked = true
+local changelog_data = {} -- Сюда будем сохранять список изменений
 ------------------------------------------------ Functions ---------------------------------------
 function main()
 
@@ -4337,6 +4356,26 @@ function downloadFileFromUrlToPath(url, path)
 end
 function check_update()
     print('Проверка на наличие обновлений...')
+	asyncHttpRequest(
+        "GET",
+        "https://raw.githubusercontent.com/KitsuneTamoe/radicalhelper/main/listupdate.json",
+        {timeout = 5},
+        function(response)
+            local ok, data = pcall(function() return decodeJson(response.text) end)
+            if ok and type(data) == "table" and data.changelog then
+                changelog_data = data.changelog
+                print('Список изменений успешно загружен!')
+            else
+                print('Ошибка загрузки списка изменений (JSON)')
+                -- Если ошибка, ставим дефолтный текст, чтобы вкладка не была пустой
+                changelog_data = {"Ошибка загрузки списка изменений с GitHub."}
+            end
+        end,
+        function(err) 
+            print('Ошибка сети при загрузке changelog: ' .. tostring(err))
+            changelog_data = {"Нет подключения к интернету или GitHub недоступен."}
+        end
+    )
     asyncHttpRequest(
         "GET",
         "https://raw.githubusercontent.com/KitsuneTamoe/radicalhelper/main/Update.json", -- Ссылка на JSON
@@ -5423,7 +5462,7 @@ function sampev.onShowDialog(dialogid, style, title, button1, button2, text)
 		sampAddChatMessage('[ShowDialog] {ffffff}ID ' .. dialogid .. ' | Style ' .. style .. ' | Title ' .. title .. ' | Btn1 ' .. button1 .. ' | Btn2 ' .. button2 .. ' | Text ' .. text, message_color)
 		print('[ShowDialog] ID ' .. dialogid .. ' | Style ' .. style .. ' | Title ' .. title .. ' | Btn1 ' .. button1 .. ' | Btn2 ' .. button2 .. ' | Text ' .. text)
 	end
-
+	if vip_show_dialog(dialogid, style, title, button1, button2, text) then return false end
 	if check_stats and (title:find('Основная статистика') or title:find('Статистика игрока')) then
 		if text:find("Имя") then
 			modules.player.data.nick = text:match("{FFFFFF}Имя: {......}(.+) %[%№%d+%] \n{FFFFFF}Пол") or text:match("{ffffff}Имя %(en%.%):%s+{......}([^\n\r]+)")
@@ -7927,10 +7966,23 @@ imgui.OnFrame(
 				end
 				imgui.EndTabItem()
 			end
-			if imgui.BeginTabItem(fa.RECTANGLE_LIST..u8'Список изменений') then 
-				imgui.Text(u8'1. Пока что ЗБТ данного скрипта!')
-				imgui.Text(u8'1. Пока что ЗБТ данного скрипта!')
+			if imgui.BeginTabItem(fa.RECTANGLE_LIST..u8' Список изменений') then
+			imgui.Separator()
+			if #changelog_data == 0 then
+				imgui.TextColored(imgui.ImVec4(1, 1, 0, 1), u8"Загрузка списка изменений...")
+				imgui.TextDisabled(u8"Если текст не появляется долго, проверьте интернет или перезагрузите скрипт.")
+			else
+				-- Проходимся по каждой строке из JSON файла
+				for i, line in ipairs(changelog_data) do
+					-- Добавляем иконку списка и текст
+					imgui.BulletText(u8(line))
+					
+					-- Небольшой отступ между строками для красоты (опционально)
+					-- imgui.Spacing() 
+				end
 			end
+			imgui.EndTabItem()
+		end
 		imgui.EndTabBar() end
 		imgui.End()
     end
@@ -8386,6 +8438,18 @@ function firs_render_assist_gui()
 			settings.general,
 			"auto_uninvite"
 		)
+		imgui.SetNextWindowPos(imgui.ImVec2(sizeX / 2, sizeY / 2), imgui.Cond.Always, imgui.ImVec2(0.5, 0.5))
+		if imgui.BeginPopupModal(fa.PERSON_CIRCLE_CHECK .. u8' Ранг для авто-инвайта ' .. fa.PERSON_CIRCLE_CHECK, _, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.AlwaysAutoResize) then
+		change_dpi()
+		imgui.PushItemWidth(250 * settings.general.custom_dpi)
+		imgui.SliderInt(u8'##auto_invite_rank', MODULE.Main.slider.rank, 1, 8)
+		if imgui.Button(fa.FLOPPY_DISK .. u8' Сохранить', imgui.ImVec2(imgui.GetMiddleButtonX(1), 25 * settings.general.custom_dpi)) then
+		settings.general.auto_invite.rank = MODULE.Main.slider.rank[0]
+		save_settings()
+		imgui.CloseCurrentPopup()
+		end
+		imgui.End()
+		end
 	end
 end
 function render_fractions_functions() 
@@ -11797,3 +11861,314 @@ function onScriptTerminate(script, game_quit)
 		end
     end
 end
+
+--------------------------------------- VIP: РЕАЛИЗАЦИЯ ------------------------------------------
+local vip_timers = {last_second = 0, flip = 0, post = 0, patrool = 0, army = 0, members = 0, awanted = 0}
+
+-- Шаблоны серверных сообщений (ПОДСТРОЙ ПОД СВОЙ СЕРВЕР!)
+local MASK_PATTERNS = {'слетела маска', 'маска слетела', 'слетела балаклава', 'балаклава слетела', 'вы потеряли маску'}
+local ARMY_PATROOL_START = {'вы начали патрулирование территории', 'заступили на патруль территории', 'патрулирование территории начато'}
+local ARMY_PATROOL_STOP  = {'патрулирование территории завершено', 'покинули территорию патруля'}
+local GRP_DIALOG_PATTERNS = {'завал', 'обломок', 'случайная ситуация', 'пострадавш', 'носилки', 'операция', 'ремонт знака', 'установка знака'}
+local INVITE_PHRASES = {'прошу инвайт', 'инвайт пожалуйста', 'возьмите в организацию', 'хочу к вам в организацию', 'прошу собеседование'}
+
+-- ============ 1. АВТО-ОБНОВЛЕНИЕ /wanteds (скрытый рескан) ============
+function vip_rescan_wanteds()
+if MODULE.Wanted.checker then return end
+lua_thread.create(function()
+local max_lvl = isMode('fbi') and 7 or 6
+MODULE.Wanted.new = {}
+MODULE.Wanted.checker = true
+for i = max_lvl, 1, -1 do sampSendChat('/wanted ' .. i) wait(1000) end
+MODULE.Wanted.checker = false
+if #MODULE.Wanted.new ~= 0 then
+MODULE.Wanted.all = MODULE.Wanted.new
+MODULE.Wanted.updwanteds.check = true
+end
+end)
+end
+
+
+-- ============ 2. AWANTED: скрытый скан преступников рядом ============
+function vip_awanted_scan()
+if MODULE.Wanted.checker then return end
+lua_thread.create(function()
+local backup = MODULE.Wanted.new
+local max_lvl = isMode('fbi') and 7 or 6
+MODULE.Wanted.new = {}
+MODULE.Wanted.checker = true
+for i = max_lvl, 1, -1 do sampSendChat('/wanted ' .. i) wait(1000) end
+MODULE.Wanted.checker = false
+local found = MODULE.Wanted.new
+MODULE.Wanted.new = backup
+for _, v in ipairs(found) do
+local res, handle = sampGetCharHandleBySampPlayerId(tonumber(v.id))
+if res and doesCharExist(handle) then
+local x, y, z = getCharCoordinates(handle)
+local mx, my, mz = getCharCoordinates(PLAYER_PED)
+local dist = getDistanceBetweenCoords3d(mx, my, mz, x, y, z)
+if dist <= 60 then
+sampAddChatMessage('[Radical Helper | VIP] {ffffff}AWANTED: рядом преступник ' .. message_color_hex .. v.nick .. '[' .. v.id .. '] (' .. v.lvl .. '*) {ffffff}в ' .. math.floor(dist) .. ' м!', message_color)
+play_sound()
+sampSendChat('/find ' .. v.id)
+if dist <= 5 then sampSendChat('/z ' .. v.id) end
+end
+end
+end
+end)
+end
+
+-- ============ 3. ФОНОВЫЙ ЦИКЛ ВСЕХ VIP-ТАЙМЕРОВ ============
+function vip_background_loop()
+while true do
+wait(250)
+local ok, err = pcall(vip_main_loop)
+if not ok then print('VIP loop error: ' .. tostring(err)) end
+end
+end
+
+function vip_main_loop()
+local now = os.time()
+if now ~= vip_timers.last_second then
+vip_timers.last_second = now
+-- VIP: авто-обновление /wanteds (15 сек)
+if (isMode('police') or isMode('fbi')) and settings.mj.auto_update_wanteds and MODULE.Wanted.Window[0] and not MODULE.Wanted.checker then
+MODULE.Wanted.updwanteds.time = (MODULE.Wanted.updwanteds.time or 0) + 1
+if MODULE.Wanted.updwanteds.time >= 15 then MODULE.Wanted.updwanteds.time = 0 vip_rescan_wanteds() end
+end
+-- VIP: авто-обновление /zeks (15 сек)
+if isMode('gov') and settings.gov.auto_update_zeks and MODULE.Zeks.Window[0] and not MODULE.Zeks.checker and not MODULE.Binder.state.isActive then
+MODULE.Zeks.updzeks.time = (MODULE.Zeks.updzeks.time or 0) + 1
+if MODULE.Zeks.updzeks.time >= 15 then
+MODULE.Zeks.updzeks.time = 0
+MODULE.Zeks.new = {} MODULE.Zeks.checker = true
+sampSendChat('/zeks')
+end
+end
+-- VIP: AWANTED (20 сек)
+if (isMode('police') or isMode('fbi')) and settings.mj.awanted and now - vip_timers.awanted >= 20 then
+vip_timers.awanted = now
+vip_awanted_scan()
+end
+end
+
+-- VIP: авто-обновление /mb (3 сек)
+if settings.general.auto_update_members and MODULE.Members.Window[0] and not MODULE.Members.info.check and not MODULE.Binder.state.isActive then
+if now - vip_timers.members >= 3 then
+vip_timers.members = now
+MODULE.Members.new = {} MODULE.Members.info.check = true
+sampSendChat('/members')
+end
+end
+
+-- VIP: Автофлип домкратом
+if settings.general.aflip_domkrat and now ~= vip_timers.flip then
+vip_timers.flip = now
+if isCharInAnyCar(PLAYER_PED) then
+local car = storeCarCharIsInNoSave(PLAYER_PED)
+local upside = pcall(function() return isCarUpsideDown(car) end) and isCarUpsideDown(car) or false
+if upside then
+sampAddChatMessage('[Radical Helper | VIP] {ffffff}Автофлип: т/с перевёрнуто, использую домкрат!', message_color)
+sampSendChat('/domkrat') -- команда домкрата на твоём сервере
+end
+end
+end
+
+-- VIP: авто-доклады /post (каждые 5 минут)
+if MODULE.Post.active and settings.general.auto_doklad_post then
+if vip_timers.post == 0 then vip_timers.post = now end
+if now - vip_timers.post >= 300 and not MODULE.Binder.state.isActive and not MODULE.Post.process_doklad then
+vip_timers.post = now
+MODULE.Post.process_doklad = true
+lua_thread.create(function()
+MODULE.Binder.state.isActive = true
+sampSendChat('/r Докладывает ' .. MODULE.Binder.tag.my_doklad_nick() .. '. Пост: ' .. MODULE.Binder.tag.get_post_name() .. ', состояние ' .. MODULE.Binder.tag.get_post_code())
+wait(1500)
+sampSendChat('/r Нахожусь на посту уже ' .. MODULE.Binder.tag.get_post_format_time())
+MODULE.Binder.state.isActive = false
+MODULE.Post.process_doklad = false
+end)
+end
+else vip_timers.post = 0 end
+
+-- VIP: авто-доклады /patrool (каждые 5 минут)
+local patrool_on = (isMode('army') or isMode('prison')) and settings.md.auto_doklad_patrool or ((isMode('police') or isMode('fbi')) and settings.mj.auto_doklad_patrool)
+if MODULE.Patrool.active and patrool_on then
+if vip_timers.patrool == 0 then vip_timers.patrool = now end
+if now - vip_timers.patrool >= 300 and not MODULE.Binder.state.isActive then
+vip_timers.patrool = now
+lua_thread.create(function()
+MODULE.Binder.state.isActive = true
+sampSendChat('/r ' .. MODULE.Binder.tag.my_doklad_nick() .. ' на CONTROL.')
+wait(1500)
+sampSendChat('/r Продолжаю патруль, нахожусь в районе ' .. MODULE.Binder.tag.get_area() .. ' (' .. MODULE.Binder.tag.get_square() .. ').')
+wait(1500)
+if MODULE.Binder.tag.get_car_units() ~= 'Нету' then
+sampSendChat('/r Патрулирую уже ' .. MODULE.Binder.tag.get_patrool_format_time() .. ' в составе юнита ' .. MODULE.Binder.tag.get_car_units() .. ', состояние ' .. MODULE.Binder.tag.get_patrool_code() .. '.')
+else
+sampSendChat('/r Патрулирую уже ' .. MODULE.Binder.tag.get_patrool_format_time() .. ', состояние ' .. MODULE.Binder.tag.get_patrool_code() .. '.')
+end
+MODULE.Binder.state.isActive = false
+end)
+end
+else vip_timers.patrool = 0 end
+
+-- VIP: авто-доклад патруля территории (армия/тюрьма)
+if (isMode('army') or isMode('prison')) and settings.md.auto_doklad_patrool and MODULE.ArmyPatrool.post ~= '' then
+if vip_timers.army == 0 then vip_timers.army = now end
+if now - vip_timers.army >= 300 and not MODULE.Binder.state.isActive then
+vip_timers.army = now
+lua_thread.create(function()
+MODULE.Binder.state.isActive = true
+sampSendChat('/r Докладывает ' .. MODULE.Binder.tag.my_doklad_nick() .. '. Продолжаю патрулирование территории ' .. MODULE.ArmyPatrool.post .. ' (' .. MODULE.Binder.tag.get_area() .. '), нарушений не обнаружено.')
+MODULE.Binder.state.isActive = false
+end)
+end
+else vip_timers.army = 0 end
+end
+
+-- ============ 4. ОБРАБОТКА СЕРВЕРНЫХ СООБЩЕНИЙ ============
+function vip_server_message(color, text)
+local low = text:rlower()
+local sex = MODULE.Binder.tag.sex and MODULE.Binder.tag.sex() or ''
+
+-- VIP: переодевание маски
+if settings.general.auto_mask then
+for _, p in ipairs(MASK_PATTERNS) do
+if low:find(p, 1, true) then
+sampAddChatMessage('[Radical Helper | VIP] {ffffff}Маска слетела — надеваю новую!', message_color)
+sampSendChat('/mask') -- команда маски на твоём сервере
+break
+end
+end
+end
+
+-- VIP: старт/стоп патруля территории (армия/тюрьма)
+if (isMode('army') or isMode('prison')) and settings.md.auto_doklad_patrool then
+for _, p in ipairs(ARMY_PATROOL_START) do
+if low:find(p, 1, true) then
+MODULE.ArmyPatrool.post = MODULE.Binder.tag.get_area()
+sampAddChatMessage('[Radical Helper | VIP] {ffffff}Патруль территории начат: авто-доклады каждые 5 минут.', message_color)
+break
+end
+end
+for _, p in ipairs(ARMY_PATROOL_STOP) do
+if low:find(p, 1, true) then MODULE.ArmyPatrool.post = '' break end
+end
+end
+
+-- VIP: доклад после ареста
+if (isMode('police') or isMode('fbi')) and settings.mj.auto_doklad_arrest then
+local arrested = text:match('^>> Вы посадили игрока (.+) в тюрьму на %d+ минут')
+if arrested and not MODULE.Binder.state.isActive then
+lua_thread.create(function()
+wait(700)
+MODULE.Binder.state.isActive = true
+sampSendChat('/r Докладывает ' .. MODULE.Binder.tag.my_doklad_nick() .. ' на CONTROL. Произвёл' .. sex .. ' арест гражданина ' .. arrested .. ': права зачитаны, протокол оформлен, доставлен' .. sex .. ' в участок.')
+MODULE.Binder.state.isActive = false
+end)
+end
+end
+
+-- VIP: авто-отыгровки RP на ГРП
+local rp_sit = (settings.mj and settings.mj.auto_rp_situation) or (settings.mh and settings.mh.auto_rp_situation)
+if rp_sit and (low:find('вы подобрали обломок', 1, true) or low:find('вы положили обломок', 1, true)) then
+lua_thread.create(function()
+MODULE.Binder.state.isActive = true
+sampSendChat('/me надевает' .. sex .. ' защитные перчатки и берёт' .. sex .. ' лом и лопату')
+wait(2000)
+sampSendChat('/do Перчатки, лом и лопата находятся в руках.')
+wait(2000)
+sampSendChat('/me аккуратными движениями отодвигает обломки в сторону, проверяя наличие пострадавших')
+wait(2000)
+sampSendChat('/do Обломки частично разобраны, пострадавших не обнаружено.')
+MODULE.Binder.state.isActive = false
+end)
+end
+
+-- VIP: авто-инвайт по фразе [9/10]
+if modules.player.data.fraction_rank_number >= 9 and settings.general.auto_invite and settings.general.auto_invite.enable then
+local id = text:match('^%[(%d+)%]')
+if id and not MODULE.Binder.state.isActive then
+local msg = (text:match(':%s*(.+)$') or ''):rlower()
+for _, p in ipairs(INVITE_PHRASES) do
+if msg:find(p, 1, true) then
+sampAddChatMessage('[Radical Helper | VIP] {ffffff}Авто-инвайт: приглашаю игрока [' .. id .. ']...', message_color)
+lua_thread.create(function()
+wait(500)
+sampSendChat('/invite ' .. id)
+wait(1000)
+if settings.general.auto_invite.rank and settings.general.auto_invite.rank > 1 then
+sampSendChat('/giverank ' .. id .. ' ' .. settings.general.auto_invite.rank)
+end
+end)
+break
+end
+end
+end
+end
+
+-- VIP: ловля новых объявлений (СМИ)
+if isMode('smi') and settings.smi.auto_catch_ads and not MODULE.SmiEdit.is_active_ad then
+if text:find('^На обработку объявлений пришло') or text:find('^Стандартное объявление:') or text:find('^VIP объявление:') then
+lua_thread.create(function() wait(300) sampSendChat('/newsredak') end)
+end
+end
+end
+
+-- ============ 5. ОБРАБОТКА ДИАЛОГОВ (кликеры / автозаполнение) ============
+function vip_show_dialog(dialogid, style, title, button1, button2, text)
+local low = (title .. ' ' .. text):rlower()
+
+-- VIP: кликеры ГРП / знаков / операций (автонажатие кнопки диалога)
+if settings.general.auto_clicker or (isMode('lc') and settings.lc.auto_repair_znak.enable) or (isMode('lc') and settings.lc.auto_install_znak.enable) or (isMode('ins') and settings.ins.auto_clicker_step3) then
+for _, p in ipairs(GRP_DIALOG_PATTERNS) do
+if low:find(p, 1, true) then
+lua_thread.create(function() wait(120) sampSendDialogResponse(dialogid, 1, 0, '') end)
+return true
+end
+end
+end
+
+-- VIP: заполнение расследований
+if (isMode('police') or isMode('fbi')) and settings.mj.auto_case_documentation then
+if low:find('расследование', 1, true) or low:find('заполните бланк', 1, true) then
+lua_thread.create(function()
+wait(200)
+sampSendDialogResponse(dialogid, 1, 0, 'Место: ' .. MODULE.Binder.tag.get_area() .. ' (' .. MODULE.Binder.tag.get_square() .. '), время: ' .. MODULE.Binder.tag.get_time() .. ', сотрудник: ' .. MODULE.Binder.tag.my_doklad_nick())
+end)
+return true
+end
+end
+
+-- VIP: быстрый выбор заявок (СТК) — берёт последнюю строку списка
+if isMode('ins') and settings.ins.auto_catch_ticket and title:find('Заявки на страхование') and not text:find('нет заявок') then
+local count = 0
+for _ in text:gmatch('[^\r\n]+') do count = count + 1 end
+lua_thread.create(function() wait(150) sampSendDialogResponse(dialogid, 1, count - 1, '') end)
+return true
+end
+
+-- VIP: авто-редакт из истории объяв (СМИ)
+if isMode('smi') and settings.smi.send_from_history and title:find('Редактирование') and text:find('Объявление от') and try_send_ad then
+local ad_text = text:match('{FFFFFF}Сообщение:%s+{33AA33}(.+)') or text:match('Сообщение%:.+{33AA33}(.+){FFFFFF}') or ''
+if modules.ads_history.data then
+for _, ad in ipairs(modules.ads_history.data) do
+if ad and ad.text == ad_text then
+lua_thread.create(function()
+wait(2000)
+try_send_ad(ad.my_text)
+end)
+return true
+end
+end
+end
+end
+return false
+end
+
+lua_thread.create(function()
+if not isSampLoaded() then return end
+while not isSampAvailable() do wait(100) end
+vip_background_loop()
+end)
